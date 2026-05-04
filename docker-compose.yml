@@ -1,0 +1,17 @@
+version: "3.9"
+
+services:
+  bot:
+    build: .
+    container_name: reklama_bot
+    restart: always
+    volumes:
+      - ./data.json:/app/data.json
+      - ./userbot_session.session:/app/userbot_session.session
+    environment:
+      - TZ=Asia/Tashkent
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
