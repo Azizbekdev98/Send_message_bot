@@ -5,6 +5,11 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY bot.py config.py ./
+COPY config.py database.py keyboards.py main.py ./
+COPY auth_server.py auth_bridge.py start.sh ./
+COPY handlers/ handlers/
+COPY services/ services/
 
-CMD ["python", "bot.py"]
+RUN chmod +x start.sh
+
+CMD ["./start.sh"]
