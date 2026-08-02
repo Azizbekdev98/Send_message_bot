@@ -1294,6 +1294,7 @@ def api_subscribe():
     token = _get_bearer()
     if not token:
         return jsonify(ok=False, error="To'lov tizimida xato")
+    data = _load(uid)
     price = int(data.get("custom_price", SUBSCRIPTION_PRICE))
     body = json.dumps({
         "merchant_id": INPAY_MERCHANT_ID,
@@ -1316,7 +1317,6 @@ def api_subscribe():
         order_id = result.get("order_id")
         if not pay_url or not order_id:
             return jsonify(ok=False, error="To'lov havolasi yaratilmadi")
-        data = _load(uid)
         data["pending_order_id"] = order_id
         _save_data(uid, data)
         return jsonify(ok=True, pay_url=pay_url, order_id=order_id)
