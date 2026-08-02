@@ -8,8 +8,9 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./data.json:/app/data.json
-      - ./userbot_session.session:/app/userbot_session.session
+      - ./users:/app/users
+      - ./media:/app/media
+      - ./sessions:/app/sessions
     environment:
       - TZ=Asia/Tashkent
     logging:
