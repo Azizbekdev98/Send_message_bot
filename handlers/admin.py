@@ -212,9 +212,131 @@ async def cb_admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("🎁 Sovga qilish", callback_data="admin_gift")],
+            [InlineKeyboardButton("📢 Barcha guruhlarga yuborish", callback_data="admin_broadcast")],
             [InlineKeyboardButton("« Orqaga", callback_data="main_menu")],
         ])
     )
+
+
+async def cb_admin_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Barcha userlarning guruhlarini ko'rsatish va shablon tanlash."""
+    if update.effective_user.id != config.ADMIN_ID:
+        return
+    query = update.callback_query
+    await query.answer()
+
+    # Admin o'z shablonlarini ko'rsatamiz
+    data = load_user(config.ADMIN_ID)
+    templates = data.get("templates", [])
+
+    if not templates:
+        await query.edit_message_text(
+            "❌ Sizda shablon yo'q.\n\n📝 Avval shablon yarating.",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("« Orqaga", callback_data="admin_panel")
+            ]])
+        )
+        return
+
+    # Barcha guruhlar statistikasi
+    all_groups = _collect_all_groups()
+    total_groups = len(all_groups)
+    total_users = len([uid for uid in all_user_ids()
+                       if uid != config.ADMIN_ID and load_user(uid).get("groups")])
+
+    buttons = []
+    for tpl in templates:
+        icon = "📷" if tpl.get("type") == "photo" else "📝"
+        buttons.append([InlineKeyboardButton(
+            f"{icon} {tpl['name']}",
+            callback_data=f"broadcast_tpl_{tpl['id']}"
+        )])
+    buttons.append([InlineKeyboardButton("« Orqaga", callback_data="admin_panel")])
+
+    await query.edit_message_text(
+        f"📢 *Barcha guruhlarga yuborish*\n\n"
+        f"👥 Foydalanuvchilar: *{total_users}* ta\n"
+        f"📌 Jami guruhlar: *{total_groups}* ta\n\n"
+        f"Qaysi shablonni yuborasiz?",
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(buttons)
+    )
+
+
+async def cb_broadcast_tpl(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Tanlangan shablonni barcha guruhlarga yuborish."""
+    if update.effective_user.id != config.ADMIN_ID:
+        return
+    query = update.callback_query
+    await query.answer()
+
+    tpl_id = int(query.data.split("_")[-1])
+    data = load_user(config.ADMIN_ID)
+    tpl = next((t for t in data["templates"] if t["id"] == tpl_id), None)
+    if not tpl:
+        return
+
+    await query.edit_message_text(
+        f"📢 *{tpl['name']}* — yuborilmoqda...\n\nKuting.",
+        parse_mode="Markdown"
+    )
+
+    all_groups = _collect_all_groups()
+    ok = fail = skip = 0
+
+    for chat_id, info in all_groups.items():
+        uid = info["user_id"]
+        from services.userbot import get_client
+        client = get_client(uid)
+        if not client:
+            skip += 1
+            continue
+        try:
+            import os
+            if tpl.get("type") == "photo" and os.path.exists(tpl.get("photo_path", "")):
+                try:
+                    await client.send_file(chat_id, tpl["photo_path"], caption=tpl["text"])
+                except Exception:
+                    await client.send_message(chat_id, tpl["text"])
+            else:
+                await client.send_message(chat_id, tpl["text"])
+            ok += 1
+        except Exception:
+            fail += 1
+        import asyncio
+        await asyncio.sleep(1)
+
+    await query.edit_message_text(
+        f"✅ *Yuborish tugadi!*\n\n"
+        f"📌 Jami guruhlar: {len(all_groups)}\n"
+        f"✅ Muvaffaqiyatli: {ok}\n"
+        f"❌ Xato: {fail}\n"
+        f"⏭ O'tkazib yuborildi (ulanmagan): {skip}",
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton("« Admin Panel", callback_data="admin_panel")
+        ]])
+    )
+
+
+def _collect_all_groups() -> dict:
+    """Barcha userlarning guruhlarini chat_id bo'yicha jamlaydi.
+    Bir guruh bir necha userda bo'lsa — birinchi topilgani olinadi."""
+    result = {}
+    for uid in all_user_ids():
+        if uid == config.ADMIN_ID:
+            continue
+        data = load_user(uid)
+        if not data.get("session_string"):
+            continue
+        for g in data.get("groups", []):
+            chat_id = g["chat_id"]
+            if chat_id not in result:
+                result[chat_id] = {
+                    "user_id": uid,
+                    "title": g.get("title", str(chat_id)),
+                }
+    return result
 
 
 async def cb_admin_back(update: Update, context: ContextTypes.DEFAULT_TYPE):
