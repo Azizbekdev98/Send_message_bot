@@ -413,6 +413,31 @@ textarea.inp{resize:none}
 @keyframes sp{to{transform:rotate(360deg)}}
 .hint-txt{font-size:13px;color:var(--tg-theme-hint-color,#888);text-align:center;padding:16px 0}
 .err-txt{color:#e53935;font-size:13px;margin-bottom:8px}
+/* Admin */
+.ag{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.ac{background:var(--tg-theme-bg-color,#fff);border-radius:12px;padding:12px;text-align:center}
+.ac .av{font-size:20px;font-weight:700}
+.ac .al{font-size:10px;color:var(--tg-theme-hint-color,#888);margin-top:2px;text-transform:uppercase;letter-spacing:.3px}
+.ua{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid rgba(0,0,0,.06)}
+.ua:last-child{border:none}
+.ua .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.ua .dot.g{background:#22c55e}.ua .dot.y{background:#f59e0b}.ua .dot.gray{background:#bbb}
+.ua .ui{flex:1;min-width:0}
+.ua .up{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ua .us{font-size:11px;color:var(--tg-theme-hint-color,#888);margin-top:1px}
+.ua .ub{font-size:11px;font-weight:700;padding:5px 9px;border-radius:8px;border:none;
+  background:var(--tg-theme-button-color,#0088cc);color:var(--tg-theme-button-text-color,#fff);
+  cursor:pointer;flex-shrink:0}
+.ua .ub:disabled{opacity:.5}
+.chip{display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;margin-left:6px}
+.chip.run{background:#e3f2fd;color:#1565c0}
+.search{width:100%;padding:10px 12px;background:var(--tg-theme-secondary-bg-color,#f2f2f7);
+  border:1.5px solid transparent;border-radius:10px;font-size:14px;
+  color:var(--tg-theme-text-color,#000);margin-bottom:10px;outline:none;display:block}
+.tpl-pick{display:flex;align-items:center;gap:10px;padding:12px;border-radius:10px;
+  border:1.5px solid #ddd;margin-bottom:8px;cursor:pointer}
+.tpl-pick.sel{border-color:var(--tg-theme-button-color,#0088cc);background:rgba(0,136,204,.06)}
+.bres{padding:12px;border-radius:10px;background:var(--tg-theme-secondary-bg-color,#f2f2f7);font-size:13px;line-height:1.7}
 </style>
 </head>
 <body>
@@ -422,6 +447,7 @@ textarea.inp{resize:none}
   <button class="nb" data-p="groups"><span class="ic">&#128101;</span>Guruhlar</button>
   <button class="nb" data-p="tpl"><span class="ic">&#128221;</span>Shablonlar</button>
   <button class="nb" data-p="stats"><span class="ic">&#128202;</span>Statistika</button>
+  <button class="nb" data-p="admin" id="nb-admin" style="display:none"><span class="ic">&#128737;&#65039;</span>Admin</button>
 </nav>
 
 <div class="content">
@@ -476,6 +502,29 @@ textarea.inp{resize:none}
     <div class="card">
       <div class="slbl" style="margin-top:0">&#128179; Obuna</div>
       <div id="sub-body"><span class="spin"></span></div>
+    </div>
+  </div>
+
+  <!-- ADMIN -->
+  <div id="p-admin" class="tab">
+    <div class="ag" id="ao-grid">
+      <div class="ac"><div class="av" id="ao-total">—</div><div class="al">Jami</div></div>
+      <div class="ac"><div class="av" id="ao-sub">—</div><div class="al">Obunali</div></div>
+      <div class="ac"><div class="av" id="ao-run">—</div><div class="al">Yubormoqda</div></div>
+      <div class="ac"><div class="av" id="ao-nosess">—</div><div class="al">Sessiyasiz</div></div>
+      <div class="ac" style="grid-column:1/3"><div class="av" id="ao-groups">—</div><div class="al">Jami guruhlar</div></div>
+    </div>
+
+    <div class="slbl">&#128101; Foydalanuvchilar</div>
+    <input class="search" id="au-search" placeholder="Telefon yoki ID bo'yicha qidirish...">
+    <div id="au-loading"><span class="spin"></span></div>
+    <div class="card" id="au-list" style="display:none"></div>
+    <div id="au-empty" class="hint-txt" style="display:none">Foydalanuvchi topilmadi</div>
+
+    <div class="slbl">&#128226; Barcha guruhlarga yuborish</div>
+    <div class="card" id="ab-card">
+      <div id="ab-loading"><span class="spin"></span></div>
+      <div id="ab-body" style="display:none"></div>
     </div>
   </div>
 
@@ -535,6 +584,22 @@ textarea.inp{resize:none}
   </div>
 </div>
 
+<!-- Modal: sovga -->
+<div class="modal" id="m-gift">
+  <div class="mc">
+    <div class="mtitle">&#127873; Obuna sovga qilish</div>
+    <div id="gf-who" style="font-size:14px;color:var(--tg-theme-hint-color,#888);margin-bottom:12px"></div>
+    <div class="ivg" id="gf-days">
+      <button class="ivb" data-d="7">7 kun</button>
+      <button class="ivb sel" data-d="30">30 kun</button>
+      <button class="ivb" data-d="90">90 kun</button>
+    </div>
+    <div class="err-txt" id="gf-err"></div>
+    <button class="btn" id="gf-save">&#9989; Sovga qilish</button>
+    <button class="btn out" id="gf-cancel">&#10060; Bekor qilish</button>
+  </div>
+</div>
+
 <script>
 var tg=window.Telegram&&window.Telegram.WebApp;
 if(tg){tg.ready();tg.expand();}
@@ -561,6 +626,7 @@ document.querySelectorAll('.nb').forEach(function(b){
     if(p==='groups')loadGroups();
     if(p==='tpl')loadTpl();
     if(p==='stats')loadStats();
+    if(p==='admin')loadAdmin();
   });
 });
 
@@ -908,8 +974,158 @@ function loadStats(){
 
 function doSub(){var b=document.getElementById("b-sub");if(b)b.click();}
 
+/* ── Admin ── */
+var _adminChecked=false,_auUsers=[],_abTpls=[],_abSelId=null;
+
+function checkAdmin(){
+  xhr('GET','/api/admin/overview',{user_id:uid},function(e,r){
+    _adminChecked=true;
+    if(!e&&r&&r.ok){document.getElementById('nb-admin').style.display='flex';}
+  });
+}
+
+function loadAdmin(){
+  loadAdminOverview();
+  loadAdminUsers();
+  loadAdminBroadcast();
+}
+
+function loadAdminOverview(){
+  xhr('GET','/api/admin/overview',{user_id:uid},function(e,r){
+    if(e||!r||!r.ok)return;
+    document.getElementById('ao-total').textContent=r.total;
+    document.getElementById('ao-sub').textContent=r.active_sub;
+    document.getElementById('ao-run').textContent=r.running;
+    document.getElementById('ao-nosess').textContent=r.no_session;
+    document.getElementById('ao-groups').textContent=r.total_groups;
+  });
+}
+
+function loadAdminUsers(){
+  document.getElementById('au-loading').style.display='block';
+  document.getElementById('au-list').style.display='none';
+  document.getElementById('au-empty').style.display='none';
+  xhr('GET','/api/admin/users',{user_id:uid},function(e,r){
+    document.getElementById('au-loading').style.display='none';
+    if(e||!r||!r.ok)return;
+    _auUsers=r.users||[];
+    renderAdminUsers();
+  });
+}
+
+function renderAdminUsers(){
+  var q=(document.getElementById('au-search').value||'').trim().toLowerCase();
+  var list=_auUsers.filter(function(u){
+    if(!q)return true;
+    return String(u.user_id).indexOf(q)!==-1||(u.phone||'').toLowerCase().indexOf(q)!==-1;
+  });
+  var el=document.getElementById('au-list');
+  if(!list.length){el.style.display='none';document.getElementById('au-empty').style.display='block';return}
+  el.style.display='block';document.getElementById('au-empty').style.display='none';
+  el.innerHTML=list.map(function(u){
+    var dot=u.has_session?(u.sub_active?'g':'y'):'gray';
+    var subTxt=u.sub_active?('&#9989; '+u.sub_days+' kun qoldi'):"&#10060; obuna yo'q";
+    var runChip=u.is_running?'<span class="chip run">&#128226; yubormoqda</span>':'';
+    return '<div class="ua">'+
+      '<span class="dot '+dot+'"></span>'+
+      '<div class="ui">'+
+        '<div class="up">'+esc(u.phone||('ID '+u.user_id))+runChip+'</div>'+
+        '<div class="us">'+subTxt+' &middot; '+u.groups_count+' guruh &middot; '+u.tpl_count+' shablon</div>'+
+      '</div>'+
+      '<button class="ub" onclick="openGift('+u.user_id+',\\''+esc(u.phone||String(u.user_id))+'\\')">&#127873;</button>'+
+      '</div>';
+  }).join('');
+}
+
+document.getElementById('au-search').addEventListener('input',renderAdminUsers);
+
+function openGift(targetId,label){
+  document.getElementById('gf-who').textContent=label+' (ID '+targetId+')';
+  document.getElementById('gf-err').textContent='';
+  document.getElementById('m-gift').dataset.target=targetId;
+  document.querySelectorAll('#gf-days .ivb').forEach(function(b){b.classList.toggle('sel',b.dataset.d==='30')});
+  document.getElementById('m-gift').classList.add('show');
+}
+document.querySelectorAll('#gf-days .ivb').forEach(function(b){
+  b.addEventListener('click',function(){
+    document.querySelectorAll('#gf-days .ivb').forEach(function(x){x.classList.remove('sel')});
+    this.classList.add('sel');
+  });
+});
+document.getElementById('gf-cancel').addEventListener('click',function(){document.getElementById('m-gift').classList.remove('show')});
+document.getElementById('gf-save').addEventListener('click',function(){
+  var btn=this,modal=document.getElementById('m-gift');
+  var target=modal.dataset.target;
+  var sel=document.querySelector('#gf-days .ivb.sel');
+  var days=sel?parseInt(sel.dataset.d):30;
+  btn.disabled=true;btn.textContent='&#9203; Yuborilmoqda...';
+  xhr('POST','/api/admin/gift',{target_id:target,days:days},function(e,r){
+    btn.disabled=false;btn.innerHTML='&#9989; Sovga qilish';
+    if(e){document.getElementById('gf-err').textContent=e;return}
+    if(r&&r.ok){modal.classList.remove('show');loadAdminUsers();loadAdminOverview();}
+    else document.getElementById('gf-err').textContent=(r&&r.error)||'Xato';
+  });
+});
+
+function loadAdminBroadcast(){
+  document.getElementById('ab-loading').style.display='block';
+  document.getElementById('ab-body').style.display='none';
+  xhr('GET','/api/admin/templates',{user_id:uid},function(e,r){
+    document.getElementById('ab-loading').style.display='none';
+    document.getElementById('ab-body').style.display='block';
+    if(e||!r||!r.ok){document.getElementById('ab-body').innerHTML='<div class="hint-txt">Yuklab bo\\'lmadi</div>';return}
+    _abTpls=r.templates||[];
+    renderBroadcast();
+  });
+}
+
+function renderBroadcast(){
+  var el=document.getElementById('ab-body');
+  if(!_abTpls.length){
+    el.innerHTML='<div class="hint-txt">Sizda shablon yo\\'q. Avval "Shablonlar" bo\\'limida shablon yarating.</div>';
+    return;
+  }
+  var picks=_abTpls.map(function(t){
+    var ic=t.type==='photo'?'&#128247;':'&#128221;';
+    return '<div class="tpl-pick'+(t.id===_abSelId?' sel':'')+'" onclick="pickBcTpl('+t.id+')">'+
+      '<span style="flex:1">'+ic+' '+esc(t.name)+'</span>'+
+      '<span class="tgl'+(t.id===_abSelId?' on':'')+'"></span>'+
+      '</div>';
+  }).join('');
+  el.innerHTML=picks+
+    '<button class="btn red" id="ab-send" style="margin-top:6px" '+(_abSelId?'':'disabled')+'>&#128226; Barcha guruhlarga yuborish</button>'+
+    '<div id="ab-result" style="margin-top:10px"></div>';
+  var sendBtn=document.getElementById('ab-send');
+  if(sendBtn)sendBtn.addEventListener('click',sendBroadcast);
+}
+
+function pickBcTpl(id){_abSelId=(_abSelId===id)?null:id;renderBroadcast();}
+
+function sendBroadcast(){
+  if(!_abSelId)return;
+  if(!confirm('Ushbu shablon barcha foydalanuvchilarning barcha guruhlariga yuboriladi. Davom etasizmi?'))return;
+  var btn=document.getElementById('ab-send');
+  btn.disabled=true;btn.textContent='&#9203; Yuborilmoqda... (bir necha daqiqa)';
+  document.getElementById('ab-result').innerHTML='';
+  xhr('POST','/api/admin/broadcast',{tpl_id:_abSelId},function(e,r){
+    btn.disabled=false;btn.textContent='&#128226; Barcha guruhlarga yuborish';
+    if(e){document.getElementById('ab-result').innerHTML='<div class="err-txt">'+e+'</div>';return}
+    if(r&&r.ok){
+      document.getElementById('ab-result').innerHTML=
+        '<div class="bres">&#9989; Yuborish tugadi<br>'+
+        '&#128204; Jami guruhlar: <strong>'+r.total+'</strong><br>'+
+        '&#9989; Muvaffaqiyatli: <strong>'+r.sent+'</strong><br>'+
+        '&#10060; Xato: <strong>'+r.failed+'</strong><br>'+
+        '&#9203; O\\'tkazib yuborildi: <strong>'+r.skipped+'</strong></div>';
+    } else {
+      document.getElementById('ab-result').innerHTML='<div class="err-txt">'+((r&&r.error)||'Xato')+'</div>';
+    }
+  });
+}
+
 /* ── Init ── */
 loadDash();
+checkAdmin();
 </script>
 </body>
 </html>"""
@@ -1369,6 +1585,203 @@ def payment_callback():
     except Exception:
         pass
     return jsonify(ok=True)
+
+
+# ── Admin panel API ──────────────────────────────────────────────────────
+
+def _is_admin(uid: str) -> bool:
+    try:
+        return int(uid) == ADMIN_ID
+    except (TypeError, ValueError):
+        return False
+
+
+def _all_user_files():
+    for f in sorted(USERS_DIR.glob("*.json")):
+        if f.name == "media":
+            continue
+        try:
+            yield f, json.loads(f.read_text())
+        except Exception:
+            continue
+
+
+def _collect_all_groups() -> dict:
+    """Barcha userlarning guruhlarini chat_id bo'yicha jamlaydi (admin bo'lmagan userlar)."""
+    result = {}
+    for f, data in _all_user_files():
+        uid = data.get("user_id")
+        if uid == ADMIN_ID or not data.get("session_string"):
+            continue
+        for g in data.get("groups", []):
+            chat_id = g.get("chat_id")
+            if chat_id is not None and chat_id not in result:
+                result[chat_id] = {"user_id": uid, "title": g.get("title", str(chat_id))}
+    return result
+
+
+@app.route("/api/admin/overview")
+def api_admin_overview():
+    uid = request.args.get("user_id", "")
+    if not _is_admin(uid):
+        return jsonify(ok=False, error="Ruxsat yo'q"), 403
+
+    total = active_sub = running = no_session = 0
+    for f, data in _all_user_files():
+        if data.get("user_id") == ADMIN_ID:
+            continue
+        total += 1
+        if not data.get("session_string"):
+            no_session += 1
+        if data.get("is_running"):
+            running += 1
+        exp = data.get("subscription_expires")
+        if exp and datetime.fromisoformat(exp) > datetime.now():
+            active_sub += 1
+
+    return jsonify(
+        ok=True,
+        total=total,
+        active_sub=active_sub,
+        running=running,
+        no_session=no_session,
+        total_groups=len(_collect_all_groups()),
+    )
+
+
+@app.route("/api/admin/users")
+def api_admin_users():
+    uid = request.args.get("user_id", "")
+    if not _is_admin(uid):
+        return jsonify(ok=False, error="Ruxsat yo'q"), 403
+
+    users = []
+    for f, data in _all_user_files():
+        u = data.get("user_id")
+        if u == ADMIN_ID:
+            continue
+        exp = data.get("subscription_expires")
+        sub_active = False
+        sub_days = 0
+        if exp:
+            dt = datetime.fromisoformat(exp)
+            if dt > datetime.now():
+                sub_active = True
+                sub_days = (dt - datetime.now()).days
+        users.append({
+            "user_id": u,
+            "phone": data.get("phone") or "",
+            "has_session": bool(data.get("session_string")),
+            "is_running": bool(data.get("is_running")),
+            "groups_count": len(data.get("groups", [])),
+            "tpl_count": len(data.get("templates", [])),
+            "sub_active": sub_active,
+            "sub_days": sub_days,
+            "total_sent": data.get("stats", {}).get("total_sent", 0),
+        })
+    users.sort(key=lambda x: (not x["is_running"], not x["sub_active"], x["user_id"]))
+    return jsonify(ok=True, users=users)
+
+
+@app.route("/api/admin/gift", methods=["POST"])
+def api_admin_gift():
+    d = request.get_json() or {}
+    uid = str(d.get("user_id", ""))
+    if not _is_admin(uid):
+        return jsonify(ok=False, error="Ruxsat yo'q"), 403
+    target = str(d.get("target_id", ""))
+    days = int(d.get("days", SUBSCRIPTION_DAYS))
+    if not target:
+        return jsonify(ok=False, error="Foydalanuvchi tanlanmagan")
+
+    data = _load(target)
+    if not data:
+        return jsonify(ok=False, error="Foydalanuvchi topilmadi")
+
+    exp = data.get("subscription_expires")
+    base = datetime.fromisoformat(exp) if exp else datetime.now()
+    if base < datetime.now():
+        base = datetime.now()
+    new_exp = base + timedelta(days=days)
+    data["subscription_expires"] = new_exp.isoformat()
+    _save_data(target, data)
+
+    exp_str = new_exp.strftime("%d.%m.%Y")
+    _notify(target, f"🎁 *Sizga {days} kunlik obuna sovga qilindi!*\n\nMuddati: *{exp_str}* gacha\n\n/start bosing.")
+    return jsonify(ok=True, expires=exp_str)
+
+
+@app.route("/api/admin/templates")
+def api_admin_templates():
+    uid = request.args.get("user_id", "")
+    if not _is_admin(uid):
+        return jsonify(ok=False, error="Ruxsat yo'q"), 403
+    data = _load(uid)
+    return jsonify(ok=True, templates=data.get("templates", []))
+
+
+@app.route("/api/admin/broadcast", methods=["POST"])
+def api_admin_broadcast():
+    d = request.get_json() or {}
+    uid = str(d.get("user_id", ""))
+    if not _is_admin(uid):
+        return jsonify(ok=False, error="Ruxsat yo'q"), 403
+    tpl_id = d.get("tpl_id")
+
+    data = _load(uid)
+    tpl = next((t for t in data.get("templates", []) if t["id"] == tpl_id), None)
+    if not tpl:
+        return jsonify(ok=False, error="Shablon topilmadi")
+
+    all_groups = _collect_all_groups()
+    if not all_groups:
+        return jsonify(ok=False, error="Yuboriladigan guruh yo'q")
+
+    by_user = {}
+    for chat_id, info in all_groups.items():
+        by_user.setdefault(info["user_id"], []).append((chat_id, info["title"]))
+
+    async def _broadcast():
+        ok = fail = skip = 0
+        for owner_uid, chats in by_user.items():
+            owner_data = _load(str(owner_uid))
+            session_str = owner_data.get("session_string", "")
+            if not session_str:
+                skip += len(chats)
+                continue
+            c = TelegramClient(StringSession(session_str), API_ID, API_HASH, **_DEVICE)
+            try:
+                await c.connect()
+                if not await c.is_user_authorized():
+                    skip += len(chats)
+                    continue
+                for chat_id, title in chats:
+                    try:
+                        if tpl.get("type") == "photo" and os.path.exists(tpl.get("photo_path", "")):
+                            try:
+                                await c.send_file(chat_id, tpl["photo_path"], caption=tpl.get("text", ""))
+                            except Exception:
+                                await c.send_message(chat_id, tpl.get("text", ""))
+                        else:
+                            await c.send_message(chat_id, tpl.get("text", ""))
+                        ok += 1
+                    except Exception:
+                        fail += 1
+                    await asyncio.sleep(1.5)
+            except Exception:
+                skip += len(chats)
+            finally:
+                try:
+                    await c.disconnect()
+                except Exception:
+                    pass
+        return ok, fail, skip
+
+    try:
+        ok, fail, skip = _run_in_thread(_broadcast(), timeout=600)
+        return jsonify(ok=True, total=len(all_groups), sent=ok, failed=fail, skipped=skip)
+    except Exception as e:
+        return jsonify(ok=False, error=str(e))
 
 
 if __name__ == "__main__":
