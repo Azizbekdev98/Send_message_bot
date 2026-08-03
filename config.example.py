@@ -17,6 +17,7 @@ INPAY_MERCHANT_ID = ""
 INPAY_MERCHANT_TOKEN = ""
 SUBSCRIPTION_PRICE = 100000  # so'm
 SUBSCRIPTION_DAYS = 30
+TRIAL_DAYS = 3  # yangi foydalanuvchiga birinchi loginda beriladigan bepul sinov muddati
 
 # Bot yangi guruhga qo'shilganda avtomatik qo'shiladigan va mute qilinadigan user ID lar
 AUTO_ADD_USER_IDS = []
