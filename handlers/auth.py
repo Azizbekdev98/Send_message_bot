@@ -47,10 +47,11 @@ def _main_text(data: dict) -> str:
 
 
 async def _finish(update_or_bot, chat_id: int, user_id: int, phone: str, client: TelegramClient):
-    from handlers.payment import has_active_subscription, get_user_price
+    from handlers.payment import has_active_subscription, get_user_price, start_trial
 
     session_str = client.session.save()
     data = load_user(user_id)
+    is_new_trial = start_trial(data)
     data["phone"] = phone
     data["session_string"] = session_str
     save_user(user_id, data)
@@ -68,7 +69,15 @@ async def _finish(update_or_bot, chat_id: int, user_id: int, phone: str, client:
         async def send(text, **kw): return await update_or_bot.send_message(chat_id, text, **kw)
 
     price = get_user_price(user_id)
-    if has_active_subscription(user_id):
+    if is_new_trial:
+        await send(
+            f"✅ *Muvaffaqiyatli kirildi!*\n\n"
+            f"👤 {me.first_name} (@{me.username or 'yo`q'})\n\n"
+            f"🎁 Sizga *{config.TRIAL_DAYS} kunlik bepul sinov* muddati taqdim etildi!\n\n"
+            "/start bosing.",
+            parse_mode="Markdown",
+        )
+    elif has_active_subscription(user_id):
         await send(
             f"✅ *Muvaffaqiyatli kirildi!*\n\n"
             f"👤 {me.first_name} (@{me.username or 'yo`q'})\n\n"
@@ -96,8 +105,10 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         if not has_active_subscription(user_id):
             from handlers.payment import get_user_price
             price = get_user_price(user_id)
+            was_trial = bool(data.get("trial_expires")) and not data.get("subscription_expires")
+            title = "⏸ *Bepul sinov muddati tugadi!*" if was_trial else "⏸ *Obuna tugagan!*"
             await update.message.reply_text(
-                f"⏸ *Obuna tugagan!*\n\n"
+                f"{title}\n\n"
                 f"Botdan foydalanish uchun obuna kerak.\n"
                 f"💳 Narxi: *{price:,} so'm / oy*\n\n"
                 "/subscribe — to'lov qilish",

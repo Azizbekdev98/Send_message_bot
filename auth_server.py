@@ -32,6 +32,7 @@ INPAY_MERCHANT_ID = config.INPAY_MERCHANT_ID
 INPAY_MERCHANT_TOKEN = config.INPAY_MERCHANT_TOKEN
 SUBSCRIPTION_PRICE= config.SUBSCRIPTION_PRICE
 SUBSCRIPTION_DAYS = config.SUBSCRIPTION_DAYS
+TRIAL_DAYS        = config.TRIAL_DAYS
 ADMIN_ID          = config.ADMIN_ID
 
 _DEVICE = dict(
@@ -78,24 +79,54 @@ def _has_sub(uid: str) -> bool:
     if uid and int(uid) == ADMIN_ID:
         return True
     data = _load(uid)
+    now = datetime.now()
     exp = data.get("subscription_expires")
-    if not exp:
+    if exp and datetime.fromisoformat(exp) > now:
+        return True
+    trial = data.get("trial_expires")
+    if trial and datetime.fromisoformat(trial) > now:
+        return True
+    return False
+
+
+def _on_trial(uid: str) -> bool:
+    data = _load(uid)
+    now = datetime.now()
+    exp = data.get("subscription_expires")
+    if exp and datetime.fromisoformat(exp) > now:
         return False
-    return datetime.fromisoformat(exp) > datetime.now()
+    trial = data.get("trial_expires")
+    return bool(trial and datetime.fromisoformat(trial) > now)
 
 
 def _sub_text(uid: str) -> str:
     if uid and int(uid) == ADMIN_ID:
         return "Admin (cheksiz)"
     data = _load(uid)
+    now = datetime.now()
     exp = data.get("subscription_expires")
-    if not exp:
-        return "Obuna yo'q"
-    dt = datetime.fromisoformat(exp)
-    if dt < datetime.now():
-        return "Obuna muddati o'tgan"
-    days = (dt - datetime.now()).days
-    return f"Obuna: {days} kun qoldi ({dt.strftime('%d.%m.%Y')})"
+    if exp:
+        dt = datetime.fromisoformat(exp)
+        if dt > now:
+            days = (dt - now).days
+            return f"Obuna: {days} kun qoldi ({dt.strftime('%d.%m.%Y')})"
+    trial = data.get("trial_expires")
+    if trial:
+        dt = datetime.fromisoformat(trial)
+        if dt > now:
+            days = (dt - now).days
+            return f"🎁 Bepul sinov: {days} kun qoldi ({dt.strftime('%d.%m.%Y')})"
+        return "Bepul sinov muddati tugagan"
+    return "Obuna yo'q"
+
+
+def _start_trial(data: dict) -> bool:
+    """Faqat hech qachon sessiya/obuna/sinov bo'lmagan foydalanuvchiga sinov beradi."""
+    if data.get("session_string") or data.get("trial_expires") or data.get("subscription_expires"):
+        return False
+    expires = datetime.now() + timedelta(days=TRIAL_DAYS)
+    data["trial_expires"] = expires.isoformat()
+    return True
 
 
 def _notify(uid: str, text: str):
@@ -166,19 +197,22 @@ def _run_auth(uid: str, coro):
     return asyncio.run_coroutine_threadsafe(coro, sess["loop"]).result(timeout=30)
 
 
-def _save_auth(uid: str, phone: str, session_str: str):
+def _save_auth(uid: str, phone: str, session_str: str) -> bool:
+    """Sessiyani saqlaydi. Qaytaradi: yangi bepul sinov berilgan bo'lsa True."""
     path = USERS_DIR / f"{uid}.json"
     d = json.loads(path.read_text()) if path.exists() else {
         "user_id": int(uid), "phone": phone, "groups": [],
         "templates": [], "is_running": False, "next_template_id": 1,
         "stats": {"total_sent": 0, "successful": 0, "failed": 0, "last_sent": None},
     }
+    is_new_trial = _start_trial(d)
     d["phone"] = phone
     d["session_string"] = session_str
     path.write_text(json.dumps(d, ensure_ascii=False, indent=2))
     path.chmod(0o777)
     with _lock:
         _auth_sessions.pop(uid, None)
+    return is_new_trial
 
 
 # ── AUTH HTML ──────────────────────────────────────────────────────────
@@ -244,6 +278,7 @@ input:focus{border-color:#0088cc}
     <div class="done">
       <div class="icon">&#9989;</div>
       <h2>Muvaffaqiyatli!</h2>
+      <p class="hint" id="done-trial" style="margin-top:12px;display:none;color:#43a047;font-weight:600"></p>
       <p class="hint" style="margin-top:12px">Botga qayting va /start bosing</p>
     </div>
   </div>
@@ -286,7 +321,7 @@ document.getElementById('b-code').addEventListener('click',function(){
   post('/api/sign_in',{code:c},function(e,r){
     busy('b-code',false,'Tasdiqlash →');
     if(e){err('e-code',e);return}
-    if(r.ok){show('done');if(tg)setTimeout(function(){tg.close()},2000)}
+    if(r.ok){showDone(r.new_trial)}
     else if(r.need_2fa)show('2fa')
     else if(r.code_expired){document.getElementById('i-code').value='';err('e-code',"Kod muddati o'tdi — yangi kod yuborildi!")}
     else err('e-code',r.error||'Xato');
@@ -309,10 +344,20 @@ document.getElementById('b-2fa').addEventListener('click',function(){
   post('/api/sign_in_2fa',{password:p},function(e,r){
     busy('b-2fa',false,'Kirish →');
     if(e){err('e-2fa',e);return}
-    if(r.ok){show('done');if(tg)setTimeout(function(){tg.close()},2000)}
+    if(r.ok){showDone(r.new_trial)}
     else err('e-2fa',r.error||"Noto'g'ri parol");
   });
 });
+
+function showDone(newTrial){
+  show('done');
+  var t=document.getElementById('done-trial');
+  if(newTrial){
+    t.textContent='🎁 Sizga 3 kunlik bepul sinov muddati taqdim etildi!';
+    t.style.display='block';
+  }
+  if(tg)setTimeout(function(){tg.close()},newTrial?3800:2000);
+}
 </script>
 </body>
 </html>"""
@@ -510,9 +555,10 @@ textarea.inp{resize:none}
     <div class="ag" id="ao-grid">
       <div class="ac"><div class="av" id="ao-total">—</div><div class="al">Jami</div></div>
       <div class="ac"><div class="av" id="ao-sub">—</div><div class="al">Obunali</div></div>
+      <div class="ac"><div class="av" id="ao-trial">—</div><div class="al">Sinovda</div></div>
       <div class="ac"><div class="av" id="ao-run">—</div><div class="al">Yubormoqda</div></div>
       <div class="ac"><div class="av" id="ao-nosess">—</div><div class="al">Sessiyasiz</div></div>
-      <div class="ac" style="grid-column:1/3"><div class="av" id="ao-groups">—</div><div class="al">Jami guruhlar</div></div>
+      <div class="ac"><div class="av" id="ao-groups">—</div><div class="al">Jami guruhlar</div></div>
     </div>
 
     <div class="slbl">&#128101; Foydalanuvchilar</div>
@@ -995,6 +1041,7 @@ function loadAdminOverview(){
     if(e||!r||!r.ok)return;
     document.getElementById('ao-total').textContent=r.total;
     document.getElementById('ao-sub').textContent=r.active_sub;
+    document.getElementById('ao-trial').textContent=r.on_trial;
     document.getElementById('ao-run').textContent=r.running;
     document.getElementById('ao-nosess').textContent=r.no_session;
     document.getElementById('ao-groups').textContent=r.total_groups;
@@ -1023,8 +1070,9 @@ function renderAdminUsers(){
   if(!list.length){el.style.display='none';document.getElementById('au-empty').style.display='block';return}
   el.style.display='block';document.getElementById('au-empty').style.display='none';
   el.innerHTML=list.map(function(u){
-    var dot=u.has_session?(u.sub_active?'g':'y'):'gray';
-    var subTxt=u.sub_active?('&#9989; '+u.sub_days+' kun qoldi'):"&#10060; obuna yo'q";
+    var dot=u.has_session?((u.sub_active||u.on_trial)?'g':'y'):'gray';
+    var subTxt=u.sub_active?('&#9989; '+u.sub_days+' kun qoldi'):
+      (u.on_trial?('&#127873; sinov: '+u.trial_days+' kun qoldi'):"&#10060; obuna yo'q");
     var runChip=u.is_running?'<span class="chip run">&#128226; yubormoqda</span>':'';
     return '<div class="ua">'+
       '<span class="dot '+dot+'"></span>'+
@@ -1183,17 +1231,21 @@ def api_sign_in():
         sess = _auth_sessions.get(uid)
     if not sess or not sess.get("hash"):
         return jsonify(ok=False, error="Avval telefon raqam yuboring")
+    trial_flag = [False]
     async def _do():
         c = sess["client"]
         if not c.is_connected():
             await c.connect()
         await c.sign_in(phone=sess["phone"], code=code, phone_code_hash=sess["hash"])
         session_str = c.session.save()
-        _save_auth(uid, sess["phone"], session_str)
+        trial_flag[0] = _save_auth(uid, sess["phone"], session_str)
     try:
         _run_auth(uid, _do())
-        _notify(uid, "✅ *Muvaffaqiyatli kirildi!*\n\n/start bosing.")
-        return jsonify(ok=True)
+        if trial_flag[0]:
+            _notify(uid, f"✅ *Muvaffaqiyatli kirildi!*\n\n🎁 Sizga *{TRIAL_DAYS} kunlik bepul sinov* muddati taqdim etildi!\n\n/start bosing.")
+        else:
+            _notify(uid, "✅ *Muvaffaqiyatli kirildi!*\n\n/start bosing.")
+        return jsonify(ok=True, new_trial=trial_flag[0])
     except SessionPasswordNeededError:
         return jsonify(ok=False, need_2fa=True)
     except PhoneCodeInvalidError:
@@ -1223,17 +1275,21 @@ def api_sign_in_2fa():
         sess = _auth_sessions.get(uid)
     if not sess:
         return jsonify(ok=False, error="Sessiya topilmadi")
+    trial_flag = [False]
     async def _do():
         c = sess["client"]
         if not c.is_connected():
             await c.connect()
         await c.sign_in(password=pw)
         session_str = c.session.save()
-        _save_auth(uid, sess["phone"], session_str)
+        trial_flag[0] = _save_auth(uid, sess["phone"], session_str)
     try:
         _run_auth(uid, _do())
-        _notify(uid, "✅ *Muvaffaqiyatli kirildi!*\n\n/start bosing.")
-        return jsonify(ok=True)
+        if trial_flag[0]:
+            _notify(uid, f"✅ *Muvaffaqiyatli kirildi!*\n\n🎁 Sizga *{TRIAL_DAYS} kunlik bepul sinov* muddati taqdim etildi!\n\n/start bosing.")
+        else:
+            _notify(uid, "✅ *Muvaffaqiyatli kirildi!*\n\n/start bosing.")
+        return jsonify(ok=True, new_trial=trial_flag[0])
     except Exception as e:
         return jsonify(ok=False, error="Noto'g'ri parol" if "password" in str(e).lower() else str(e))
 
@@ -1626,7 +1682,8 @@ def api_admin_overview():
     if not _is_admin(uid):
         return jsonify(ok=False, error="Ruxsat yo'q"), 403
 
-    total = active_sub = running = no_session = 0
+    total = active_sub = on_trial = running = no_session = 0
+    now = datetime.now()
     for f, data in _all_user_files():
         if data.get("user_id") == ADMIN_ID:
             continue
@@ -1636,13 +1693,18 @@ def api_admin_overview():
         if data.get("is_running"):
             running += 1
         exp = data.get("subscription_expires")
-        if exp and datetime.fromisoformat(exp) > datetime.now():
+        if exp and datetime.fromisoformat(exp) > now:
             active_sub += 1
+        else:
+            trial = data.get("trial_expires")
+            if trial and datetime.fromisoformat(trial) > now:
+                on_trial += 1
 
     return jsonify(
         ok=True,
         total=total,
         active_sub=active_sub,
+        on_trial=on_trial,
         running=running,
         no_session=no_session,
         total_groups=len(_collect_all_groups()),
@@ -1660,14 +1722,24 @@ def api_admin_users():
         u = data.get("user_id")
         if u == ADMIN_ID:
             continue
+        now = datetime.now()
         exp = data.get("subscription_expires")
         sub_active = False
         sub_days = 0
         if exp:
             dt = datetime.fromisoformat(exp)
-            if dt > datetime.now():
+            if dt > now:
                 sub_active = True
-                sub_days = (dt - datetime.now()).days
+                sub_days = (dt - now).days
+        on_trial = False
+        trial_days = 0
+        if not sub_active:
+            trial = data.get("trial_expires")
+            if trial:
+                dt = datetime.fromisoformat(trial)
+                if dt > now:
+                    on_trial = True
+                    trial_days = (dt - now).days
         users.append({
             "user_id": u,
             "phone": data.get("phone") or "",
@@ -1677,6 +1749,8 @@ def api_admin_users():
             "tpl_count": len(data.get("templates", [])),
             "sub_active": sub_active,
             "sub_days": sub_days,
+            "on_trial": on_trial,
+            "trial_days": trial_days,
             "total_sent": data.get("stats", {}).get("total_sent", 0),
         })
     users.sort(key=lambda x: (not x["is_running"], not x["sub_active"], x["user_id"]))

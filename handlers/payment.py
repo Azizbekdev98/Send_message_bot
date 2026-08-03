@@ -99,10 +99,37 @@ def has_active_subscription(user_id: int) -> bool:
     if user_id == config.ADMIN_ID:
         return True
     data = load_user(user_id)
+    now = datetime.now()
     expires = data.get("subscription_expires")
-    if not expires:
+    if expires and datetime.fromisoformat(expires) > now:
+        return True
+    trial = data.get("trial_expires")
+    if trial and datetime.fromisoformat(trial) > now:
+        return True
+    return False
+
+
+def is_on_trial(user_id: int) -> bool:
+    """Foydalanuvchi haqiqiy obunasi yo'q, faqat bepul sinov muddatida ekanini tekshiradi."""
+    data = load_user(user_id)
+    now = datetime.now()
+    expires = data.get("subscription_expires")
+    if expires and datetime.fromisoformat(expires) > now:
         return False
-    return datetime.fromisoformat(expires) > datetime.now()
+    trial = data.get("trial_expires")
+    return bool(trial and datetime.fromisoformat(trial) > now)
+
+
+def start_trial(data: dict) -> bool:
+    """Foydalanuvchi birinchi marta login qilayotganda (data ali session_string
+    o'rnatilmasdan oldin chaqiriladi) 3 kunlik bepul sinov beradi — data ichiga
+    trial_expires yozadi, saqlashni chaqiruvchi bajaradi. Qaytaradi: sinov
+    berilgan bo'lsa True (hech qachon sessiya/obuna/sinov bo'lmagan bo'lsa)."""
+    if data.get("session_string") or data.get("trial_expires") or data.get("subscription_expires"):
+        return False
+    expires = datetime.now() + timedelta(days=config.TRIAL_DAYS)
+    data["trial_expires"] = expires.isoformat()
+    return True
 
 
 def subscription_required(handler):
@@ -144,14 +171,21 @@ def activate_subscription(user_id: int):
 
 def subscription_text(user_id: int) -> str:
     data = load_user(user_id)
+    now = datetime.now()
     expires = data.get("subscription_expires")
-    if not expires:
-        return "Obuna: yo'q"
-    exp = datetime.fromisoformat(expires)
-    if exp < datetime.now():
-        return "Obuna: muddati o'tgan"
-    days = (exp - datetime.now()).days
-    return f"Obuna: {days} kun qoldi ({exp.strftime('%d.%m.%Y')})"
+    if expires:
+        exp = datetime.fromisoformat(expires)
+        if exp > now:
+            days = (exp - now).days
+            return f"Obuna: {days} kun qoldi ({exp.strftime('%d.%m.%Y')})"
+    trial = data.get("trial_expires")
+    if trial:
+        exp = datetime.fromisoformat(trial)
+        if exp > now:
+            days = (exp - now).days
+            return f"🎁 Bepul sinov: {days} kun qoldi ({exp.strftime('%d.%m.%Y')})"
+        return "Bepul sinov muddati tugagan"
+    return "Obuna: yo'q"
 
 
 # ── Telegram handlers ────────────────────────────────────────────────
